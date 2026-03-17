@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CYBER-BRAID: VERTICAL</title>
+    <style>
+        :root {
+            --bg: #0a0a0c;
+            --primary: #00f2ff;
+            --secondary: #ff00ff;
+            --wire: #1a1a20;
+            --gate-off: #444;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--primary);
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        #ui { 
+            width: 100%;
+            padding: 15px 0; 
+            text-align: center; 
+            background: rgba(0,0,0,0.8);
+            border-bottom: 1px solid #222;
+            z-index: 20;
+        }
+
+        h2 { margin: 5px 0; font-size: 1.2rem; }
+        h3 { margin: 2px 0; font-size: 0.8rem; color: #888; font-weight: normal; }
+
+        #game-board {
+            position: relative;
+            width: 95vw; /* Responsive Width */
+            max-width: 500px;
+            height: 70vh; /* Vertical height for nodes to travel */
+            background: #0d0d0f;
+            border-top: 4px solid #222;
+            border-bottom: 4px solid #222;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            margin-top: 10px;
+        }
+
+        .lane {
+            position: absolute;
+            top: 0;
+            width: 2px;
+            height: 100%;
+            background: var(--wire);
+            z-index: 1;
+        }
+
+        /* Square Gate Design - Sized for Tapping */
+        .gate-rung {
+            position: absolute;
+            width: 44px;
+            height: 44px;
+            background: #151518;
+            border: 2px solid var(--gate-off);
+            cursor: pointer;
+            z-index: 5;
+            border-radius: 6px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transform: translate(-50%, -50%); 
+            touch-action: manipulation;
+        }
+
+        .gate-rung.active {
+            border-color: var(--secondary);
+            background: #300030;
+            box-shadow: 0 0 15px var(--secondary);
+        }
+
+        /* Internal Logic Lines (Now Vertical for "Pass-through") */
+        .gate-rung::before, .gate-rung::after {
+            content: '';
+            position: absolute;
+            width: 2px;
+            height: 22px;
+            background: var(--gate-off);
+            transition: all 0.3s ease;
+        }
+
+        .gate-rung::before { transform: translateX(-5px); }
+        .gate-rung::after { transform: translateX(5px); }
+
+        .gate-rung.active::before {
+            background: var(--secondary);
+            transform: rotate(45deg);
+        }
+        .gate-rung.active::after {
+            background: var(--secondary);
+            transform: rotate(-45deg);
+        }
+
+        .node {
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            background: #fff;
+            border-radius: 50%;
+            box-shadow: 0 0 12px #fff, 0 0 5px var(--primary);
+            z-index: 10;
+            transform: translate(-50%, -50%);
+            transition: left 0.3s ease-in-out; /* Smooth lane switching */
+        }
+
+        .io-label {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            font-size: 11px;
+            font-weight: bold;
+            color: var(--secondary);
+            text-shadow: 0 0 5px var(--secondary);
+        }
+
+        #controls { margin-top: 15px; }
+        .btn {
+            background: transparent;
+            color: var(--primary);
+            border: 1px solid var(--primary);
+            padding: 12px 18px;
+            cursor: pointer;
+            margin: 0 5px;
+            font-family: inherit;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+        }
+        .btn:active { background: var(--primary); color: #000; }
+        .btn:disabled { border-color: #333; color: #333; opacity: 0.5; }
+
+        #overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 100;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <h2>RECONSTRUCT_SEQUENCE.v2</h2>
+    <h3>Direct nodes to target zones at the bottom.</h3>
+</div>
+
+<div id="game-board">
+    <div id="lanes-layer"></div>
+    <div id="gates-layer"></div>
+    <div id="nodes-layer"></div>
+</div>
+
+<div id="controls">
+    <button class="btn" id="run-btn" onclick="startRun()">START RUN</button>
+    <button class="btn" id="regen-btn" onclick="generateLevel()">NEW MAP</button>
+</div>
+
+<div id="overlay">
+    <h1 id="status-text"></h1>
+    <p id="status-sub"></p>
+    <button class="btn" onclick="resetUI()">CONTINUE</button>
+</div>
+
+<script>
+const LANES = 4; // Fewer lanes for better mobile fit
+const ROWS = 5; 
+const SPAWN_DELAY = 1500; 
+
+let boardW, boardH, laneSpacing, rowSpacing;
+let gateStates = [];
+let targetOutputs = [];
+let currentArrivals = [];
+let inputs = [];
+
+// Initialize board dimensions based on container
+function updateDimensions() {
+    const board = document.getElementById('game-board');
+    boardW = board.clientWidth;
+    boardH = board.clientHeight;
+    laneSpacing = boardW / (LANES + 1);
+    rowSpacing = boardH / (ROWS + 1);
+}
+
+function generateLevel() {
+    updateDimensions();
+    const gatesLayer = document.getElementById('gates-layer');
+    const lanesLayer = document.getElementById('lanes-layer');
+    gatesLayer.innerHTML = '';
+    lanesLayer.innerHTML = '';
+    gateStates = [];
+    currentArrivals = Array(LANES).fill(0);
+
+    // Create Vertical Lanes
+    for(let i=0; i<LANES; i++) {
+        const x = (i + 1) * laneSpacing;
+        const l = document.createElement('div');
+        l.className = 'lane';
+        l.style.left = `${x}px`;
+        lanesLayer.appendChild(l);
+    }
+
+    // Create Gates (Centered between rows)
+    for(let r=0; r<ROWS; r++) {
+        const y = (r + 1) * rowSpacing;
+        for(let l=0; l<LANES-1; l++) {
+            if(Math.random() > 0.4) {
+                const xMid = ((l + 1) * laneSpacing) + (laneSpacing / 2);
+                const gateObj = { id: `g-${r}-${l}`, row: r, lane: l, active: false, y: y };
+                gateStates.push(gateObj);
+
+                const el = document.createElement('div');
+                el.className = 'gate-rung';
+                el.style.top = `${y}px`;
+                el.style.left = `${xMid}px`;
+                el.onclick = () => {
+                    gateObj.active = !gateObj.active;
+                    el.classList.toggle('active');
+                };
+                gatesLayer.appendChild(el);
+            }
+        }
+    }
+
+    const nodeCount = 5; 
+    inputs = Array.from({length: nodeCount}, () => Math.floor(Math.random() * LANES));
+    targetOutputs = simulate(inputs, gateStates.map(g => ({...g, active: Math.random() > 0.5})));
+    drawLabels();
+}
+
+function drawLabels() {
+    const lanesLayer = document.getElementById('lanes-layer');
+    const targets = Array(LANES).fill(0);
+    targetOutputs.forEach(t => targets[t]++);
+
+    for(let i=0; i<LANES; i++) {
+        const x = (i + 1) * laneSpacing;
+        const label = document.createElement('div');
+        label.className = 'io-label';
+        label.id = `label-${i}`;
+        label.style.width = `${laneSpacing}px`;
+        label.style.left = `${x - (laneSpacing/2)}px`;
+        label.style.top = `${boardH + 5}px`;
+        label.innerText = `0/${targets[i]}`;
+        lanesLayer.appendChild(label);
+    }
+}
+
+function updateLiveCount(laneIndex) {
+    const targets = Array(LANES).fill(0);
+    targetOutputs.forEach(t => targets[t]++);
+    const label = document.getElementById(`label-${laneIndex}`);
+    if (label) {
+        label.innerText = `${currentArrivals[laneIndex]}/${targets[laneIndex]}`;
+        label.style.transform = 'scale(1.3)';
+        label.style.color = currentArrivals[laneIndex] === targets[laneIndex] ? 'var(--primary)' : 'var(--secondary)';
+        setTimeout(() => label.style.transform = 'scale(1)', 200);
+    }
+}
+
+function simulate(inputArray, currentGates) {
+    return inputArray.map(startLane => {
+        let lane = startLane;
+        const sorted = [...currentGates].sort((a,b) => a.y - b.y);
+        sorted.forEach(g => {
+            if(g.active) {
+                if(lane === g.lane) lane++;
+                else if(lane === g.lane + 1) lane--;
+            }
+        });
+        return lane;
+    });
+}
+
+async function startRun() {
+    document.getElementById('nodes-layer').innerHTML = '';
+    const runBtn = document.getElementById('run-btn');
+    const regenBtn = document.getElementById('regen-btn');
+    runBtn.disabled = true;
+    regenBtn.disabled = true;
+
+    currentArrivals = Array(LANES).fill(0);
+    for(let i=0; i<LANES; i++) updateLiveCount(i);
+
+    const animations = inputs.map(async (startLane, i) => {
+        await new Promise(r => setTimeout(r, i * SPAWN_DELAY));
+        const finalLane = await moveNode(startLane);
+        currentArrivals[finalLane]++;
+        updateLiveCount(finalLane);
+        return finalLane;
+    });
+
+    const finals = await Promise.all(animations);
+    runBtn.disabled = false;
+    regenBtn.disabled = false;
+    checkWin(finals);
+}
+
+function moveNode(startLane) {
+    return new Promise(resolve => {
+        const node = document.createElement('div');
+        node.className = 'node';
+        document.getElementById('nodes-layer').appendChild(node);
+
+        let currentLane = startLane;
+        let y = 0;
+        const speed = 2.0; 
+        const sortedGates = [...gateStates].sort((a,b) => a.y - b.y);
+        let gateIdx = 0;
+
+        function step() {
+            y += speed;
+            node.style.top = `${y}px`;
+            node.style.left = `${(currentLane + 1) * laneSpacing}px`;
+
+            if(gateIdx < sortedGates.length) {
+                const g = sortedGates[gateIdx];
+                if(y >= g.y) {
+                    if(g.active) {
+                        if(currentLane === g.lane) currentLane++;
+                        else if(currentLane === g.lane + 1) currentLane--;
+                    }
+                    gateIdx++;
+                }
+            }
+
+            if(y < boardH) {
+                requestAnimationFrame(step);
+            } else {
+                resolve(currentLane);
+            }
+        }
+        step();
+    });
+}
+
+function checkWin(finals) {
+    const target = Array(LANES).fill(0);
+    targetOutputs.forEach(t => target[t]++);
+    const win = currentArrivals.every((v, i) => v === target[i]);
+    
+    const overlay = document.getElementById('overlay');
+    const statusText = document.getElementById('status-text');
+    statusText.innerText = win ? "DECRYPTED" : "REJECTED";
+    statusText.style.color = win ? "var(--primary)" : "var(--secondary)";
+    document.getElementById('status-sub').innerText = win ? "SEQUENCE MATCHED. ACCESS GRANTED." : "CHECKSUM ERROR. RETRY RECOMMENDED.";
+    overlay.style.display = 'flex';
+}
+
+function resetUI() {
+    document.getElementById('overlay').style.display = 'none';
+    document.getElementById('nodes-layer').innerHTML = '';
+    currentArrivals = Array(LANES).fill(0);
+    for(let i=0; i<LANES; i++) updateLiveCount(i);
+}
+
+window.addEventListener('resize', updateDimensions);
+generateLevel();
+</script>
+</body>
+</html>
