@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CYBER-BRAID: VERTICAL</title>
+    <title>CYBER-BRAID: MOBILE FIX</title>
     <style>
         :root {
             --bg: #0a0a0c;
@@ -13,42 +13,41 @@
             --gate-off: #444;
         }
 
+        /* Use Flexbox to manage the vertical stack */
         body {
             background-color: var(--bg);
             color: var(--primary);
             font-family: 'Courier New', Courier, monospace;
             display: flex;
             flex-direction: column;
-            align-items: center;
-            justify-content: flex-start;
-            min-height: 100vh;
+            height: 100vh;
             margin: 0;
             overflow: hidden;
             touch-action: none;
         }
 
-        #ui { 
-            width: 100%;
-            padding: 15px 0; 
+        #ui-header { 
+            padding: 10px 0; 
             text-align: center; 
             background: rgba(0,0,0,0.8);
             border-bottom: 1px solid #222;
-            z-index: 20;
+            flex-shrink: 0;
         }
 
-        h2 { margin: 5px 0; font-size: 1.2rem; }
-        h3 { margin: 2px 0; font-size: 0.8rem; color: #888; font-weight: normal; }
+        h2 { margin: 5px 0; font-size: 1.1rem; letter-spacing: 1px; }
+        p.sub-text { margin: 2px 0; font-size: 0.75rem; color: #888; }
 
+        /* Board now takes up the remaining available space */
         #game-board {
             position: relative;
-            width: 95vw; /* Responsive Width */
-            max-width: 500px;
-            height: 70vh; /* Vertical height for nodes to travel */
+            width: 90vw;
+            max-width: 450px;
+            margin: 10px auto;
             background: #0d0d0f;
-            border-top: 4px solid #222;
-            border-bottom: 4px solid #222;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
-            margin-top: 10px;
+            border: 2px solid #222;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+            flex: 1; /* Key change: Fill the middle space */
+            overflow: visible;
         }
 
         .lane {
@@ -60,7 +59,6 @@
             z-index: 1;
         }
 
-        /* Square Gate Design - Sized for Tapping */
         .gate-rung {
             position: absolute;
             width: 44px;
@@ -70,7 +68,6 @@
             cursor: pointer;
             z-index: 5;
             border-radius: 6px;
-            transition: all 0.2s;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -84,65 +81,62 @@
             box-shadow: 0 0 15px var(--secondary);
         }
 
-        /* Internal Logic Lines (Now Vertical for "Pass-through") */
         .gate-rung::before, .gate-rung::after {
             content: '';
             position: absolute;
             width: 2px;
-            height: 22px;
+            height: 20px;
             background: var(--gate-off);
-            transition: all 0.3s ease;
+            transition: all 0.2s;
         }
 
-        .gate-rung::before { transform: translateX(-5px); }
-        .gate-rung::after { transform: translateX(5px); }
+        .gate-rung::before { transform: translateX(-4px); }
+        .gate-rung::after { transform: translateX(4px); }
 
-        .gate-rung.active::before {
-            background: var(--secondary);
-            transform: rotate(45deg);
-        }
-        .gate-rung.active::after {
-            background: var(--secondary);
-            transform: rotate(-45deg);
-        }
+        .gate-rung.active::before { background: var(--secondary); transform: rotate(45deg); }
+        .gate-rung.active::after { background: var(--secondary); transform: rotate(-45deg); }
 
         .node {
             position: absolute;
-            width: 18px;
-            height: 18px;
+            width: 16px;
+            height: 16px;
             background: #fff;
             border-radius: 50%;
-            box-shadow: 0 0 12px #fff, 0 0 5px var(--primary);
+            box-shadow: 0 0 10px #fff;
             z-index: 10;
             transform: translate(-50%, -50%);
-            transition: left 0.3s ease-in-out; /* Smooth lane switching */
+            transition: left 0.3s ease-in-out;
         }
 
         .io-label {
             position: absolute;
-            width: 100%;
             text-align: center;
             font-size: 11px;
             font-weight: bold;
             color: var(--secondary);
-            text-shadow: 0 0 5px var(--secondary);
+            bottom: -25px; /* Stay just below the board */
         }
 
-        #controls { margin-top: 15px; }
+        /* Controls footer pinned to bottom */
+        #ui-footer { 
+            padding: 15px 0 25px 0; /* Extra bottom padding for home indicators */
+            text-align: center;
+            flex-shrink: 0;
+        }
+
         .btn {
             background: transparent;
             color: var(--primary);
             border: 1px solid var(--primary);
-            padding: 12px 18px;
+            padding: 10px 15px;
             cursor: pointer;
             margin: 0 5px;
             font-family: inherit;
-            letter-spacing: 1px;
+            font-size: 0.75rem;
             text-transform: uppercase;
-            font-size: 0.8rem;
         }
-        .btn:active { background: var(--primary); color: #000; }
-        .btn:disabled { border-color: #333; color: #333; opacity: 0.5; }
+
+        .btn:disabled { border-color: #333; color: #333; }
 
         #overlay {
             display: none;
@@ -154,15 +148,14 @@
             align-items: center;
             justify-content: center;
             text-align: center;
-            padding: 20px;
         }
     </style>
 </head>
 <body>
 
-<div id="ui">
+<div id="ui-header">
     <h2>RECONSTRUCT_SEQUENCE.v2</h2>
-    <h3>Direct nodes to target zones at the bottom.</h3>
+    <p class="sub-text">Direct nodes to target zones at the bottom.</p>
 </div>
 
 <div id="game-board">
@@ -171,7 +164,7 @@
     <div id="nodes-layer"></div>
 </div>
 
-<div id="controls">
+<div id="ui-footer">
     <button class="btn" id="run-btn" onclick="startRun()">START RUN</button>
     <button class="btn" id="regen-btn" onclick="generateLevel()">NEW MAP</button>
 </div>
@@ -183,7 +176,7 @@
 </div>
 
 <script>
-const LANES = 4; // Fewer lanes for better mobile fit
+const LANES = 4;
 const ROWS = 5; 
 const SPAWN_DELAY = 1500; 
 
@@ -193,7 +186,6 @@ let targetOutputs = [];
 let currentArrivals = [];
 let inputs = [];
 
-// Initialize board dimensions based on container
 function updateDimensions() {
     const board = document.getElementById('game-board');
     boardW = board.clientWidth;
@@ -204,27 +196,23 @@ function updateDimensions() {
 
 function generateLevel() {
     updateDimensions();
-    const gatesLayer = document.getElementById('gates-layer');
-    const lanesLayer = document.getElementById('lanes-layer');
-    gatesLayer.innerHTML = '';
-    lanesLayer.innerHTML = '';
+    document.getElementById('gates-layer').innerHTML = '';
+    document.getElementById('lanes-layer').innerHTML = '';
     gateStates = [];
     currentArrivals = Array(LANES).fill(0);
 
-    // Create Vertical Lanes
     for(let i=0; i<LANES; i++) {
         const x = (i + 1) * laneSpacing;
         const l = document.createElement('div');
         l.className = 'lane';
         l.style.left = `${x}px`;
-        lanesLayer.appendChild(l);
+        document.getElementById('lanes-layer').appendChild(l);
     }
 
-    // Create Gates (Centered between rows)
     for(let r=0; r<ROWS; r++) {
         const y = (r + 1) * rowSpacing;
         for(let l=0; l<LANES-1; l++) {
-            if(Math.random() > 0.4) {
+            if(Math.random() > 0.45) {
                 const xMid = ((l + 1) * laneSpacing) + (laneSpacing / 2);
                 const gateObj = { id: `g-${r}-${l}`, row: r, lane: l, active: false, y: y };
                 gateStates.push(gateObj);
@@ -237,19 +225,17 @@ function generateLevel() {
                     gateObj.active = !gateObj.active;
                     el.classList.toggle('active');
                 };
-                gatesLayer.appendChild(el);
+                document.getElementById('gates-layer').appendChild(el);
             }
         }
     }
 
-    const nodeCount = 5; 
-    inputs = Array.from({length: nodeCount}, () => Math.floor(Math.random() * LANES));
+    inputs = Array.from({length: 5}, () => Math.floor(Math.random() * LANES));
     targetOutputs = simulate(inputs, gateStates.map(g => ({...g, active: Math.random() > 0.5})));
     drawLabels();
 }
 
 function drawLabels() {
-    const lanesLayer = document.getElementById('lanes-layer');
     const targets = Array(LANES).fill(0);
     targetOutputs.forEach(t => targets[t]++);
 
@@ -260,9 +246,8 @@ function drawLabels() {
         label.id = `label-${i}`;
         label.style.width = `${laneSpacing}px`;
         label.style.left = `${x - (laneSpacing/2)}px`;
-        label.style.top = `${boardH + 5}px`;
         label.innerText = `0/${targets[i]}`;
-        lanesLayer.appendChild(label);
+        document.getElementById('lanes-layer').appendChild(label);
     }
 }
 
@@ -272,9 +257,7 @@ function updateLiveCount(laneIndex) {
     const label = document.getElementById(`label-${laneIndex}`);
     if (label) {
         label.innerText = `${currentArrivals[laneIndex]}/${targets[laneIndex]}`;
-        label.style.transform = 'scale(1.3)';
         label.style.color = currentArrivals[laneIndex] === targets[laneIndex] ? 'var(--primary)' : 'var(--secondary)';
-        setTimeout(() => label.style.transform = 'scale(1)', 200);
     }
 }
 
@@ -294,10 +277,8 @@ function simulate(inputArray, currentGates) {
 
 async function startRun() {
     document.getElementById('nodes-layer').innerHTML = '';
-    const runBtn = document.getElementById('run-btn');
-    const regenBtn = document.getElementById('regen-btn');
-    runBtn.disabled = true;
-    regenBtn.disabled = true;
+    document.getElementById('run-btn').disabled = true;
+    document.getElementById('regen-btn').disabled = true;
 
     currentArrivals = Array(LANES).fill(0);
     for(let i=0; i<LANES; i++) updateLiveCount(i);
@@ -310,10 +291,10 @@ async function startRun() {
         return finalLane;
     });
 
-    const finals = await Promise.all(animations);
-    runBtn.disabled = false;
-    regenBtn.disabled = false;
-    checkWin(finals);
+    await Promise.all(animations);
+    document.getElementById('run-btn').disabled = false;
+    document.getElementById('regen-btn').disabled = false;
+    checkWin();
 }
 
 function moveNode(startLane) {
@@ -321,7 +302,6 @@ function moveNode(startLane) {
         const node = document.createElement('div');
         node.className = 'node';
         document.getElementById('nodes-layer').appendChild(node);
-
         let currentLane = startLane;
         let y = 0;
         const speed = 2.0; 
@@ -333,48 +313,43 @@ function moveNode(startLane) {
             node.style.top = `${y}px`;
             node.style.left = `${(currentLane + 1) * laneSpacing}px`;
 
-            if(gateIdx < sortedGates.length) {
+            if(gateIdx < sortedGates.length && y >= sortedGates[gateIdx].y) {
                 const g = sortedGates[gateIdx];
-                if(y >= g.y) {
-                    if(g.active) {
-                        if(currentLane === g.lane) currentLane++;
-                        else if(currentLane === g.lane + 1) currentLane--;
-                    }
-                    gateIdx++;
+                if(g.active) {
+                    if(currentLane === g.lane) currentLane++;
+                    else if(currentLane === g.lane + 1) currentLane--;
                 }
+                gateIdx++;
             }
 
-            if(y < boardH) {
-                requestAnimationFrame(step);
-            } else {
-                resolve(currentLane);
-            }
+            if(y < boardH) requestAnimationFrame(step);
+            else resolve(currentLane);
         }
         step();
     });
 }
 
-function checkWin(finals) {
+function checkWin() {
     const target = Array(LANES).fill(0);
     targetOutputs.forEach(t => target[t]++);
     const win = currentArrivals.every((v, i) => v === target[i]);
     
     const overlay = document.getElementById('overlay');
-    const statusText = document.getElementById('status-text');
-    statusText.innerText = win ? "DECRYPTED" : "REJECTED";
-    statusText.style.color = win ? "var(--primary)" : "var(--secondary)";
-    document.getElementById('status-sub').innerText = win ? "SEQUENCE MATCHED. ACCESS GRANTED." : "CHECKSUM ERROR. RETRY RECOMMENDED.";
+    document.getElementById('status-text').innerText = win ? "DECRYPTED" : "REJECTED";
+    document.getElementById('status-text').style.color = win ? "var(--primary)" : "var(--secondary)";
+    document.getElementById('status-sub').innerText = win ? "SEQUENCE MATCHED." : "CHECKSUM ERROR.";
     overlay.style.display = 'flex';
 }
 
 function resetUI() {
     document.getElementById('overlay').style.display = 'none';
     document.getElementById('nodes-layer').innerHTML = '';
-    currentArrivals = Array(LANES).fill(0);
-    for(let i=0; i<LANES; i++) updateLiveCount(i);
 }
 
-window.addEventListener('resize', updateDimensions);
+window.addEventListener('resize', () => {
+    updateDimensions();
+    generateLevel();
+});
 generateLevel();
 </script>
 </body>
